@@ -69,7 +69,7 @@ function love.load()
 		fpsPlot = {},
 		
 		-- Take a screenshot with the start button
-		debugScreenshot = true
+		debugScreenshot = false
 	}
 	
 	if window.profile then
@@ -395,7 +395,7 @@ function canMoveWindow()
 end
 
 function line(x1, y1, x2, y2)
-	love.graphics.line(x1 + 0.5, y1 + 0.5, x2 + 0.5, y2 + 0.5)
+	love.graphics.line(math.floor(x1) + 0.5, math.floor(y1) + 0.5, math.floor(x2) + 0.5, math.floor(y2) + 0.5)
 end
 
 function round(n)

@@ -36,6 +36,8 @@ function setup()
 			"end"
 		},
 		
+		filename = "untitled.txt",
+		
 		-- Where the heck the mouse is
 		mouse = {
 			x = 0,
@@ -122,6 +124,20 @@ function love.textinput(t)
 	addTo(editor.cursor.x, editor.cursor.y, t)
 	moveCursor(1, 0)
 end
+
+-- Open file
+function love.filedropped(file)
+	editor.filename = file:getFilename()
+	editor.text = {}
+	
+	local line
+	for line in file:lines() do
+		line = string.gsub(line, "\t", "    ")
+		table.insert(editor.text, line)
+	end
+	
+	editor.cursor.x, editor.cursor.y = 1, 1
+end
  
 -- Oops, my template has overridden the love.keypressed function.
 function _keypressed(key)
@@ -154,6 +170,13 @@ function _keypressed(key)
 		elseif key == "down" then
 			-- Scroll down
 			editor.camera.y = editor.camera.y + 1
+		elseif key == "o" then
+			-- Open
+			love.window.showMessageBox("Hey!", "I'm too lazy to add a file browser. Drop a file onto this and it'll open it.", "info")
+		elseif key == "s" then
+			-- Save
+			love.filesystem.write(editor.filename, getTextFromTo(1, 1, #editor.text[#editor.text] + 1, #editor.text))
+			love.window.showMessageBox("Hey!", "saved as " .. editor.filename, "info")
 		elseif key == "x" then
 			-- Cut
 			love.system.setClipboardText(getSelectionText())
