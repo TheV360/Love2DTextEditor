@@ -125,7 +125,11 @@ function love.load()
 	-- Make screen canvas
 	window.screen.canvas = love.graphics.newCanvas(window.screen.width, window.screen.height)
 	
-	-- These make watches, things sorta like the BUTTON(type) function in SmileBASIC, but a lot more general. Also, they're just tables with a few functions!
+	-- These make watches, things that check if a thing is true, then output 3 things:
+		-- downTime[]: How long it's been true
+		-- press[]:    If it just became true
+		-- release[]:  If it just became false
+	-- Also, for QoL, there's another table that just says if it's true or not. (down[])
 	button = Watch.new({"up", "down", "left", "right", "a", "b", "start", "debug", "quit"}, function(key) return love.keyboard.isDown(button.map[key]) end)
 	mouse = Watch.new({1, 2, 3, 4, 5}, function(key) return love.mouse.isDown(key) end)
 	

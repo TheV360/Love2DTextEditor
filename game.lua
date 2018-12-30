@@ -36,74 +36,101 @@ function setup()
 			"end"
 		},
 		
+		-- Where the heck the mouse is
 		mouse = {
 			x = 0,
 			y = 0
 		},
 		
+		-- Where the heck your cursor is
 		cursor = {
 			x = 1,
 			y = 1,
 			
+			-- Where the selection is
 			select = {
+				-- Is the selection a thing?
 				enabled = false,
+				
+				-- Where the selection begins
 				from = {
 					x = 1,
 					y = 1
 				},
+				
+				-- Where the selection ends
 				to = {
 					x = 1,
 					y = 1
 				}
+				
+				-- Note that the selection's end can be before the selection's beginning.
+				-- Use getCorrectSelection to get the correct coordinates.
 			},
 			
+			-- h
 			blink = {
 				time = 0,
 				max = 30
 			}
 		},
 		
+		-- How big one character is
 		character = {
 			width = 6,
 			height = 8
 		},
 		
+		-- How big the screen is in character units
 		screen = {
 			width = window.screen.width / 6,
 			height = window.screen.height / 8
 		},
 		
+		-- Where the camera is
 		camera = {
 			x = 1,
 			y = 1
 		},
 		
+		-- What's a linebreak
 		lineBreak = "\n"
 	}
 	
+	-- Unnecessary effects
 	effects = {
+		-- Should the screen shake?
 		pow = false,
+		
+		-- Particles go here
 		particles = {}
 	}
 	
+	-- The screen can shake anywhere between the ranges you set.
 	window.shake.extremes = false
 	
+	-- I draw my own mouse
 	love.mouse.setVisible(false)
+	
+	-- Key Repeat
     love.keyboard.setKeyRepeat(true)
 end
 
+-- Add text
 function love.textinput(t)
 	removeSelection()
 	addTo(editor.cursor.x, editor.cursor.y, t)
 	moveCursor(1, 0)
 end
  
+-- Oops, my template has overridden the love.keypressed function.
 function _keypressed(key)
 	-- Solid cursor when any key pressed, this is a QoL improvement in many text editors.
 	editor.cursor.blink.time = 0
 	
 	if love.keyboard.isDown("lshift", "rshift") then
 		if key == "up" then
+			-- Select in every direction.
 			moveSelection(0, -1)
 		elseif key == "down" then
 			moveSelection(0, 1)
@@ -112,77 +139,99 @@ function _keypressed(key)
 		elseif key == "right" then
 			moveSelection(1, 0)
 		elseif key == "home" then
+			-- Select to the beginning of this line.
 			moveSelection(1 - editor.cursor.x, 0)
 		elseif key == "end" then
+			-- Select to the end of this line.
 			moveSelection(#editor.text[editor.cursor.y] + 1 - editor.cursor.x, 0)
+		else
+			return
 		end
 	elseif love.keyboard.isDown("lctrl", "rctrl") then
 		if key == "up" then
+			-- Scroll up
 			editor.camera.y = editor.camera.y - 1
 		elseif key == "down" then
+			-- Scroll down
 			editor.camera.y = editor.camera.y + 1
 		elseif key == "x" then
+			-- Cut
 			love.system.setClipboardText(getSelectionText())
 			removeSelection()
 		elseif key == "c" then
+			-- Copy
 			love.system.setClipboardText(getSelectionText())
 		elseif key == "v" then
+			-- Paste
+			-- The fixEOL function removes any CRLFs Windows may have added while SDL wasn't looking
 			local c = fixEOL(love.system.getClipboardText())
 			
 			removeSelection()
 			addTo(editor.cursor.x, editor.cursor.y, c)
 			moveCursorWithWrap(#c, 0)
 		elseif key == "a" then
+			-- Select all
 			editor.cursor.select.enabled = true
 			editor.cursor.x, editor.cursor.y = #editor.text[#editor.text] + 1, #editor.text
 			editor.cursor.select.from.x, editor.cursor.select.from.y = 1, 1
 			editor.cursor.select.to.x, editor.cursor.select.to.y = editor.cursor.x, editor.cursor.y
+		else
+			return
 		end
 	elseif love.keyboard.isDown("lalt", "ralt") then
 		if key == "up" then
+			-- Move line up
 			if editor.cursor.y > 1 then
+				hellYes()
 				editor.text[editor.cursor.y - 1], editor.text[editor.cursor.y] = editor.text[editor.cursor.y], editor.text[editor.cursor.y - 1]
 				editor.cursor.y = editor.cursor.y - 1
 			end
 		elseif key == "down" then
+			-- Move line down
 			if editor.cursor.y < #editor.text then
 				hellYes()
 				editor.text[editor.cursor.y], editor.text[editor.cursor.y + 1] = editor.text[editor.cursor.y + 1], editor.text[editor.cursor.y]
 				editor.cursor.y = editor.cursor.y + 1
 			end
+		else
+			return
 		end
+		
+		-- It's safe to say that any of these operations destroy the selection.
+		editor.cursor.select.enabled = false
 	else
 		if key == "up" then
 			moveCursorWithWrap(0, -1)
-			editor.cursor.select.enabled = false
 		elseif key == "down" then
 			moveCursorWithWrap(0, 1)
-			editor.cursor.select.enabled = false
 		elseif key == "left" then
 			moveCursorWithWrap(-1, 0)
-			editor.cursor.select.enabled = false
 		elseif key == "right" then
 			moveCursorWithWrap(1, 0)
-			editor.cursor.select.enabled = false
 		elseif key == "home" then
-			editor.cursor.x = 1
+			moveCursor(1 - editor.cursor.x, 0)
 			moveCameraToCursor()
 		elseif key == "end" then
-			editor.cursor.x = #editor.text[editor.cursor.y] + 1
+			moveCursor(#editor.text[editor.cursor.y] + 1 - editor.cursor.x, 0)
 			moveCameraToCursor()
 		elseif key == "pageup" then
 			moveCursor(0, -editor.screen.height)
 		elseif key == "pagedown" then
 			moveCursor(0, editor.screen.height)
 		elseif (key == "delete" or key == "backspace") and editor.cursor.select.enabled then
+			-- This kills the selection
 			removeSelection()
 		elseif key == "delete" then
+			-- Needs to be refactored with all these new functions.
+			
 			if editor.cursor.x < #editor.text[editor.cursor.y] + 1 then
 				removeFromTo(editor.cursor.x, editor.cursor.y, editor.cursor.x + 1)
 			elseif editor.cursor.y < #editor.text then
 				editor.text[editor.cursor.y] = editor.text[editor.cursor.y] .. table.remove(editor.text, editor.cursor.y + 1)
 			end
 		elseif key == "backspace" then
+			-- Needs to be refactored with all these new functions.
+			
 			if editor.cursor.x > 1 then
 				removeFromTo(editor.cursor.x - 1, editor.cursor.y, editor.cursor.x)
 				moveCursor(-1, 0)
@@ -196,10 +245,17 @@ function _keypressed(key)
 		elseif key == "return" then
 			addTo(editor.cursor.x, editor.cursor.y, editor.lineBreak)
 			moveCursorWithWrap(1, 0)
+		else
+			-- Stop this before it reaches the selection-destroying part.
+			return
 		end
+		
+		-- It's safe to say that any of these operations destroy the selection.
+		editor.cursor.select.enabled = false
 	end
 end
 
+-- Move 
 function love.wheelmoved(x, y)
 	editor.camera.x = math.max(1, editor.camera.x + x)
 	editor.camera.y = math.max(1, editor.camera.y - y)
@@ -234,6 +290,7 @@ function update()
 	
 	-- Screen shake
 	if effects.pow then
+		-- See main.lua:371
 		window.shake.x = 4
 		window.shake.y = 4
 		effects.pow = false
@@ -244,12 +301,22 @@ function update()
 	
 	-- Particles
 	for i = #effects.particles, 1, -1 do
+		-- Turns out you don't have to make velocity slowly decay to have pretty particles.
+		
+		-- Move x and y by velocity x and velocity y
 		effects.particles[i].x = effects.particles[i].x + effects.particles[i].vx
 		effects.particles[i].y = effects.particles[i].y + effects.particles[i].vy
+		
+		-- Fake gravity
 		effects.particles[i].vy = effects.particles[i].vy + 0.2
+		
+		-- The end is near
 		effects.particles[i].l = effects.particles[i].l - 1
 		
+		-- The end is here
 		if effects.particles[i].l <= 0 then table.remove(effects.particles, i) end
+		
+		-- Ominous comments but okay
 	end
 end
 
@@ -281,6 +348,7 @@ function draw()
 		if editor.text[editor.camera.y + j] then
 			local text = string.sub(editor.text[editor.camera.y + j], editor.camera.x, editor.camera.x + editor.screen.width)
 			
+			-- Shadow that only appears at high window scale (found this made it look worse)
 			-- if window.screen.scale > 1 then
 			-- 	love.graphics.setColor(1, 1, 1, 0.5)
 			-- 	love.graphics.print(text, 1, j * editor.character.height + 1)
@@ -292,6 +360,7 @@ function draw()
 	end
 	
 	-- Selection
+	-- TODO: if selection off screen, give up drawing it
 	if editor.cursor.select.enabled then
 		local fx, fy, tx, ty = getCorrectSelection()
 		
@@ -348,24 +417,19 @@ function draw()
 	line(editor.mouse.x + 1, editor.mouse.y, editor.mouse.x + 3, editor.mouse.y)
 	
 	-- Debug stuff
-	-- love.graphics.print("Cursor at {" .. editor.cursor.x .. ", " .. editor.cursor.y .. "}", editor.screen.width / 2 * editor.character.width, 25 * editor.character.height)
-	-- love.graphics.print("Cursor blink time: " .. editor.cursor.blink.time .. " / " .. editor.cursor.blink.max, editor.screen.width / 2 * editor.character.width, 26 * editor.character.height)
+	-- love.graphics.setColor(0, 0, 0, 0.75)
+	-- love.graphics.rectangle("fill", 0, 25 * editor.character.height, editor.screen.width * editor.character.width, 5 * editor.character.height)
+	-- love.graphics.setColor(1, 0.25, 0.5, 1)
+	-- local half = editor.screen.width / 2
+	-- love.graphics.print("Cursor at {" .. editor.cursor.x .. ", " .. editor.cursor.y .. "}", half * editor.character.width, 25 * editor.character.height)
+	-- love.graphics.print("Cursor blink time: " .. editor.cursor.blink.time .. " / " .. editor.cursor.blink.max, half * editor.character.width, 26 * editor.character.height)
 	-- if editor.cursor.select.enabled then
 	-- 	love.graphics.print("Selection From {" .. editor.cursor.select.from.x .. ", " .. editor.cursor.select.from.y .. "}", 0, 25 * editor.character.height)
 	-- 	love.graphics.print("To {" .. editor.cursor.select.to.x .. ", " .. editor.cursor.select.to.y .. "}", 0, 26 * editor.character.height)
 	-- end
-	-- if #debug_HECK > 1 then
-	-- 	local sum = "{["
-	-- 	for i = 1, #debug_HECK do
-	-- 		if i > 1 then sum = sum .. "], [" end
-	-- 		sum = sum .. debug_HECK[i]
-	-- 	end
-	-- 	sum = sum .. "]}"
-	-- 	love.system.setClipboardText(sum)
-	-- 	debug_HECK = {}
-	-- end
 end
 
+-- Move cursor without thinking
 function moveCursor(x, y)
 	editor.cursor.y = math.max(1, math.min(editor.cursor.y + y, #editor.text                     ))
 	editor.cursor.x = math.max(1, math.min(editor.cursor.x + x, #editor.text[editor.cursor.y] + 1))
@@ -373,6 +437,7 @@ function moveCursor(x, y)
 	moveCameraToCursor()
 end
 
+-- Move cursor with thinking
 function moveCursorWithWrap(x, y)
 	if     y < 0 then
 		if editor.cursor.y > 1 then
@@ -390,6 +455,7 @@ function moveCursorWithWrap(x, y)
 		end
 	end
 	
+	-- hack solution to this problem
 	while x ~= 0 do
 		if     x < 0 then
 			if editor.cursor.x > 1 then
@@ -434,6 +500,7 @@ function moveCameraToCursor()
 	if editor.camera.x + editor.screen.width - 1  < editor.cursor.x then editor.camera.x = editor.cursor.x - (editor.screen.width  - 1) end
 end
 
+-- this is a mess
 function getCorrectSelection()
 	local fx, fy, tx, ty
 	
@@ -461,9 +528,13 @@ function getTextFromTo(fx, fy, tx, ty)
 	local r = ""
 	
 	if fy == ty then
+		-- There's only one line, don't need to do much
 		r = string.sub(editor.text[fy], fx, tx - 1)
 	else
+		-- Get first line's text
 		r = string.sub(editor.text[fy], fx)
+		
+		-- Get all the other text
 		for j = fy + 1, ty do
 			r = r .. editor.lineBreak
 			if j == ty then
@@ -485,6 +556,7 @@ function getSelectionText()
 	return getTextFromTo(fx, fy, tx, ty)
 end
 
+-- Find what character the mouse is on top of
 function getMouseCharacter()
 	local x, y = editor.cursor.x, editor.cursor.y
 	
@@ -494,6 +566,7 @@ function getMouseCharacter()
 	return x, y
 end
 
+-- Add some text at some point
 function addTo(x, y, t)
 	hellYes(x, y)
 	
@@ -517,6 +590,7 @@ function addTo(x, y, t)
 	end
 end
 
+-- Remove some text
 function removeFromTo(fx, fy, tx, ty)
 	local j
 	
@@ -555,10 +629,12 @@ function removeSelection()
 	hellYes(tx, ty)
 end
 
+-- Converts CRLF to LF, removes the mysterious invisible characters that sometimes appear when pasting text
 function fixEOL(s)
 	return string.gsub(s, "[\r\n]+", "\n")
 end
 
+-- Copied from L2DSBL
 -- String split function because it includes empty strings.
 -- Seems pretty slow. Optimize?
 function stringSplitFunky(string, delimiter, max)
@@ -586,6 +662,7 @@ function stringSplitFunky(string, delimiter, max)
 	return result
 end
 
+-- Particle at place
 function particle(x, y, vx, vy)
 	local p = {
 		x = x,
