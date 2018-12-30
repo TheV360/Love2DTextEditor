@@ -243,8 +243,18 @@ function _keypressed(key)
 				moveCameraToCursor()
 			end
 		elseif key == "return" then
-			addTo(editor.cursor.x, editor.cursor.y, editor.lineBreak)
-			moveCursorWithWrap(1, 0)
+			-- If there's whitespace at the far left of this line, put it on the end of the thing I'm about to add
+			-- string.find returns start and end indexes
+			local s, e = string.find(editor.text[editor.cursor.y], "^[%s]*")
+			
+			-- Screw it, I'm repurposing variables like this
+			s = editor.lineBreak
+			if e > 0 then
+				s = s .. string.sub(editor.text[editor.cursor.y], 1, e)
+			end
+			
+			addTo(editor.cursor.x, editor.cursor.y, s)
+			moveCursorWithWrap(#s, 0)
 		else
 			-- Stop this before it reaches the selection-destroying part.
 			return
