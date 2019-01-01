@@ -6,6 +6,7 @@ This is a text editor, built in Love2D from scratch.
 
 * ~~Nice indentation~~
 * Saving and loading
+* Scrollbar
 * Basic syntax highlighting
 * More particles
 * Refactor some things

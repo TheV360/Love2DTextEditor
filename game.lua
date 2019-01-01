@@ -36,7 +36,13 @@ function setup()
 			"end"
 		},
 		
-		filename = "untitled.txt",
+		-- Stuff about the file
+		file = {
+			name = "untitled.txt",
+			path = love.filesystem.getSaveDirectory(),
+			
+			lineBreak = "\n"
+		},
 		
 		-- Where the heck the mouse is
 		mouse = {
@@ -85,19 +91,19 @@ function setup()
 		
 		-- How big the screen is in character units
 		screen = {
-			width = window.screen.width / 6,
-			height = window.screen.height / 8
+			width = nil,
+			height = nil
 		},
 		
 		-- Where the camera is
 		camera = {
 			x = 1,
 			y = 1
-		},
-		
-		-- What's a linebreak
-		lineBreak = "\n"
+		}
 	}
+	
+	editor.screen.width = window.screen.width / editor.character.width
+	editor.screen.height = window.screen.height / editor.character.height
 	
 	-- Unnecessary effects
 	effects = {
@@ -114,8 +120,11 @@ function setup()
 	-- I draw my own mouse
 	love.mouse.setVisible(false)
 	
+	-- Here's my mouse
+	pointerImage = love.graphics.newImage("resources/pointer.png")
+	
 	-- Key Repeat
-    love.keyboard.setKeyRepeat(true)
+	love.keyboard.setKeyRepeat(true)
 end
 
 -- Add text
@@ -127,7 +136,8 @@ end
 
 -- Open file
 function love.filedropped(file)
-	editor.filename = file:getFilename()
+	local filename = file:getFilename()
+	editor.file.name, editor.file.path = splitFileNamePath(filename)
 	editor.text = {}
 	
 	local line
@@ -166,17 +176,17 @@ function _keypressed(key)
 	elseif love.keyboard.isDown("lctrl", "rctrl") then
 		if key == "up" then
 			-- Scroll up
-			editor.camera.y = editor.camera.y - 1
+			moveCamera(0, -1)
 		elseif key == "down" then
 			-- Scroll down
-			editor.camera.y = editor.camera.y + 1
+			moveCamera(0, 1)
 		elseif key == "o" then
 			-- Open
 			love.window.showMessageBox("Hey!", "I'm too lazy to add a file browser. Drop a file onto this and it'll open it.", "info")
 		elseif key == "s" then
 			-- Save
-			love.filesystem.write(editor.filename, getTextFromTo(1, 1, #editor.text[#editor.text] + 1, #editor.text))
-			love.window.showMessageBox("Hey!", "saved as " .. editor.filename, "info")
+			love.filesystem.write(editor.file.name, getTextFromTo(1, 1, #editor.text[#editor.text] + 1, #editor.text))
+			love.window.showMessageBox("Hey!", "saved as " .. editor.file.name, "info")
 		elseif key == "x" then
 			-- Cut
 			love.system.setClipboardText(getSelectionText())
@@ -271,7 +281,7 @@ function _keypressed(key)
 			local s, e = string.find(editor.text[editor.cursor.y], "^[%s]*")
 			
 			-- Screw it, I'm repurposing variables like this
-			s = editor.lineBreak
+			s = editor.file.lineBreak
 			if e > 0 then
 				s = s .. string.sub(editor.text[editor.cursor.y], 1, e)
 			end
@@ -290,8 +300,8 @@ end
 
 -- Move 
 function love.wheelmoved(x, y)
-	editor.camera.x = math.max(1, editor.camera.x + x)
-	editor.camera.y = math.max(1, editor.camera.y - y)
+	if love.keyboard.isDown("lshift", "rshift") then x, y = -y, -x end
+	moveCamera(x, -y)
 end
 
 function update()
@@ -304,6 +314,7 @@ function update()
 		
 		editor.cursor.x, editor.cursor.y = x, y
 		
+		-- Selecting stuff with mouse
 		if mouse.press[1] then
 			editor.cursor.select.enabled = false
 			editor.cursor.select.from.x, editor.cursor.select.from.y = x, y
@@ -393,45 +404,7 @@ function draw()
 	end
 	
 	-- Selection
-	-- TODO: if selection off screen, give up drawing it
-	if editor.cursor.select.enabled then
-		local fx, fy, tx, ty = getCorrectSelection()
-		
-		love.graphics.setColor(0.75, 0.75, 0.25, 0.5)
-		if fy == ty then
-			love.graphics.rectangle("fill",
-				(fx - editor.camera.x) * editor.character.width,
-				(fy - editor.camera.y) * editor.character.height,
-				(tx - fx) * editor.character.width,
-				editor.character.height
-			)
-		else
-			for j = fy, ty do
-				if j == fy then
-					love.graphics.rectangle("fill",
-						(fx - editor.camera.x) * editor.character.width,
-						(fy - editor.camera.y) * editor.character.height,
-						(#editor.text[j] + 1 - fx) * editor.character.width,
-						editor.character.height
-					)
-				elseif j == ty then
-					love.graphics.rectangle("fill",
-						0,
-						(ty - editor.camera.y) * editor.character.height,
-						(tx - editor.camera.x) * editor.character.width,
-						editor.character.height
-					)
-				else
-					love.graphics.rectangle("fill",
-						(1 - editor.camera.x) * editor.character.width,
-						(j - editor.camera.y) * editor.character.height,
-						#editor.text[j] * editor.character.width,
-						editor.character.height
-					)
-				end
-			end
-		end
-	end
+	drawSelection()
 	
 	-- Cursor
 	love.graphics.setColor(0.25, 0.5, 1, cosine(editor.cursor.blink.time, editor.cursor.blink.max, 0.75))
@@ -444,10 +417,8 @@ function draw()
 	)
 	
 	-- Mouse
-	love.graphics.setColor(1, 0.25, 0.5, 1)
-	line(editor.mouse.x, editor.mouse.y, editor.mouse.x + 5, editor.mouse.y + 5)
-	line(editor.mouse.x, editor.mouse.y + 1, editor.mouse.x, editor.mouse.y + 3)
-	line(editor.mouse.x + 1, editor.mouse.y, editor.mouse.x + 3, editor.mouse.y)
+	love.graphics.setColor(1, 1, 1, 1)
+	love.graphics.draw(pointerImage, editor.mouse.x, editor.mouse.y)
 	
 	-- Debug stuff
 	-- love.graphics.setColor(0, 0, 0, 0.75)
@@ -526,11 +497,73 @@ function moveSelection(x, y)
 	editor.cursor.select.to.y = editor.cursor.y
 end
 
+function moveCamera(x, y)
+	editor.camera.x = math.max(1, editor.camera.x + x)
+	editor.camera.y = math.max(1, editor.camera.y + y)
+end
+
 function moveCameraToCursor()
 	if editor.camera.y                            > editor.cursor.y then editor.camera.y = editor.cursor.y                              end
 	if editor.camera.y + editor.screen.height - 1 < editor.cursor.y then editor.camera.y = editor.cursor.y - (editor.screen.height - 1) end
 	if editor.camera.x                            > editor.cursor.x then editor.camera.x = editor.cursor.x                              end
 	if editor.camera.x + editor.screen.width - 1  < editor.cursor.x then editor.camera.x = editor.cursor.x - (editor.screen.width  - 1) end
+end
+
+function withinCameraX(x)
+	return x > editor.camera.x - 1 and x < editor.camera.x + editor.screen.width
+end
+
+function withinCameraY(y)
+	return y > editor.camera.y - 1 and y < editor.camera.y + editor.screen.height
+end
+
+function withinCamera(x, y)
+	return withinCameraX(x) and withinCameraY(y)
+end
+
+function drawSelection()
+	if not editor.cursor.select.enabled then return end
+	
+	local fx, fy, tx, ty = getCorrectSelection()
+	
+	love.graphics.setColor(0.75, 0.75, 0.25, 0.5)
+	if fy == ty then
+		if not withinCameraY(fy) then return end
+		
+		love.graphics.rectangle("fill",
+			(fx - editor.camera.x) * editor.character.width,
+			(fy - editor.camera.y) * editor.character.height,
+			(tx - fx) * editor.character.width,
+			editor.character.height
+		)
+	else
+		for j = fy, ty do
+			if withinCameraY(j) then
+				if j == fy then
+					love.graphics.rectangle("fill",
+						(fx - editor.camera.x) * editor.character.width,
+						(fy - editor.camera.y) * editor.character.height,
+						(#editor.text[j] + 1.5 - fx) * editor.character.width,
+						editor.character.height
+					)
+				elseif j == ty then
+					love.graphics.rectangle("fill",
+						0,
+						(ty - editor.camera.y) * editor.character.height,
+						(tx - editor.camera.x) * editor.character.width,
+						editor.character.height
+					)
+				else
+					love.graphics.rectangle("fill",
+						(1 - editor.camera.x) * editor.character.width,
+						(j - editor.camera.y) * editor.character.height,
+						(#editor.text[j] + 0.5) * editor.character.width,
+						editor.character.height
+					)
+				end
+			end
+		end
+	end
 end
 
 -- this is a mess
@@ -569,7 +602,7 @@ function getTextFromTo(fx, fy, tx, ty)
 		
 		-- Get all the other text
 		for j = fy + 1, ty do
-			r = r .. editor.lineBreak
+			r = r .. editor.file.lineBreak
 			if j == ty then
 				r = r .. string.sub(editor.text[j], 1, tx - 1)
 			else
@@ -606,7 +639,7 @@ function addTo(x, y, t)
 	local j
 	local lines = {}
 	
-	lines = stringSplitFunky(t, editor.lineBreak)
+	lines = stringSplitFunky(t, editor.file.lineBreak)
 	
 	if #lines == 1 then
 		editor.text[y] = string.sub(editor.text[y], 1, x - 1) .. t .. string.sub(editor.text[y], x)
@@ -693,6 +726,16 @@ function stringSplitFunky(string, delimiter, max)
 	end
 	
 	return result
+end
+
+function splitFileNamePath(filename)
+	local lastSlash = #filename
+	
+	while lastSlash > 0 and string.sub(filename, lastSlash, lastSlash) ~= "/" do
+		lastSlash = lastSlash - 1
+	end
+	
+	return string.sub(filename, 1, lastSlash - 1), string.sub(filename, lastSlash + 1)
 end
 
 -- Particle at place
