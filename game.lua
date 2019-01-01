@@ -99,6 +99,19 @@ function setup()
 		camera = {
 			x = 1,
 			y = 1
+		},
+		
+		scrollbar = {
+			longestLine = 1,
+			
+			thickness = 2,
+			
+			fade = {
+				total = 0,
+				
+				stickTime = 90,
+				fadeTime = 30
+			}
 		}
 	}
 	
@@ -125,6 +138,9 @@ function setup()
 	
 	-- Key Repeat
 	love.keyboard.setKeyRepeat(true)
+	
+	-- Click thing???
+	typeSound = love.audio.newSource("resources/type.wav", "static")
 end
 
 -- Add text
@@ -132,6 +148,11 @@ function love.textinput(t)
 	removeSelection()
 	addTo(editor.cursor.x, editor.cursor.y, t)
 	moveCursor(1, 0)
+	
+	typeSoundAround(0.875)
+	
+	editor.scrollbar.longestLine = getLongestLine()
+	showScrollbar()
 end
 
 -- Open file
@@ -275,6 +296,8 @@ function _keypressed(key)
 				editor.cursor.x = before
 				moveCameraToCursor()
 			end
+			
+			typeSoundAround(0.25)
 		elseif key == "return" then
 			-- If there's whitespace at the far left of this line, put it on the end of the thing I'm about to add
 			-- string.find returns start and end indexes
@@ -288,6 +311,8 @@ function _keypressed(key)
 			
 			addTo(editor.cursor.x, editor.cursor.y, s)
 			moveCursorWithWrap(#s, 0)
+	
+			typeSoundAround(0.5)
 		else
 			-- Stop this before it reaches the selection-destroying part.
 			return
@@ -341,6 +366,11 @@ function update()
 	else
 		window.shake.x = 0
 		window.shake.y = 0
+	end
+	
+	-- Scrollbar fade
+	if editor.scrollbar.fade.total > 0 then
+		editor.scrollbar.fade.total = editor.scrollbar.fade.total - 1
 	end
 	
 	-- Particles
@@ -415,6 +445,43 @@ function draw()
 		editor.character.width,
 		editor.character.height
 	)
+	
+	-- Scrollbar
+	if editor.scrollbar.fade.total > 0 then
+		if editor.scrollbar.fade.total <= editor.scrollbar.fade.fadeTime then
+			love.graphics.setColor(0.75, 0.75, 0.75, (editor.scrollbar.fade.total / editor.scrollbar.fade.fadeTime) / 2)
+		else
+			love.graphics.setColor(0.75, 0.75, 0.75, 0.5)
+		end
+		
+		local realX, realY = editor.scrollbar.longestLine - editor.screen.width + 30, #editor.text-- - editor.screen.height + 1
+		
+		if editor.camera.x <= realX then
+			love.graphics.rectangle(
+				"fill",
+				((editor.camera.x - 1) / realX) * (window.screen.width - editor.scrollbar.thickness),
+				window.screen.height - editor.scrollbar.thickness,
+				(1 / realX) * (window.screen.width - editor.scrollbar.thickness),
+				editor.scrollbar.thickness
+			)
+		end
+		if editor.camera.y <= realY then
+			love.graphics.rectangle(
+				"fill",
+				window.screen.width - editor.scrollbar.thickness,
+				((editor.camera.y - 1) / realY) * (window.screen.height - editor.scrollbar.thickness),
+				editor.scrollbar.thickness,
+				(1 / realY) * (window.screen.height - editor.scrollbar.thickness)
+			)
+		end
+		love.graphics.rectangle(
+			"fill",
+			window.screen.width - editor.scrollbar.thickness,
+			window.screen.height - editor.scrollbar.thickness,
+			editor.scrollbar.thickness,
+			editor.scrollbar.thickness
+		)
+	end
 	
 	-- Mouse
 	love.graphics.setColor(1, 1, 1, 1)
@@ -500,6 +567,8 @@ end
 function moveCamera(x, y)
 	editor.camera.x = math.max(1, editor.camera.x + x)
 	editor.camera.y = math.max(1, editor.camera.y + y)
+	
+	showScrollbar()
 end
 
 function moveCameraToCursor()
@@ -587,6 +656,17 @@ function getCorrectSelection()
 	end
 	
 	return fx, fy, tx, ty
+end
+
+function getLongestLine()
+	local j
+	local l = 1
+	
+	for j = 1, #editor.text do
+		l = math.max(l, #editor.text[j])
+	end
+	
+	return l
 end
 
 function getTextFromTo(fx, fy, tx, ty)
@@ -700,6 +780,10 @@ function fixEOL(s)
 	return string.gsub(s, "[\r\n]+", "\n")
 end
 
+function showScrollbar()
+	editor.scrollbar.fade.total = editor.scrollbar.fade.stickTime + editor.scrollbar.fade.fadeTime
+end
+
 -- Copied from L2DSBL
 -- String split function because it includes empty strings.
 -- Seems pretty slow. Optimize?
@@ -768,4 +852,9 @@ end
 function hellYes(x, y)
 	effects.pow = true
 	particleExplodeAtCharacter(x or editor.cursor.x, y or editor.cursor.y)
+end
+
+function typeSoundAround(n, m)
+	typeSound:setPitch(n + love.math.random() * (m or 0.125))
+	love.audio.play(typeSound)
 end
