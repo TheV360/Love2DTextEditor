@@ -108,6 +108,8 @@ function setup()
 	
 	-- Click thing???
 	typeSound = love.audio.newSource("resources/type.wav", "static")
+	typeSound2 = typeSound:clone()
+	typeSound3 = typeSound:clone()
 	
 	-- Load from `stdin`
 	incomingText = string.gsub(io.stdin:read('*a'), "\t", editor.file.tabConvert)
@@ -162,6 +164,13 @@ function _keypressed(key)
 		elseif key == "end" then
 			-- Select to the end of this line.
 			moveSelection(#editor.text[editor.cursor.y] + 1 - editor.cursor.x, 0)
+		elseif key == "delete" then
+			if not editor.cursor.select.enabled then
+				moveCursor(1 - editor.cursor.x, 0)
+				moveCameraToCursor()
+				moveSelection(0, 1)
+			end
+			removeSelection()
 		else
 			return
 		end
@@ -607,6 +616,7 @@ function drawSelection()
 end
 
 -- this is a mess
+-- tx is not inclusive btw
 function getCorrectSelection()
 	local fx, fy, tx, ty
 	
@@ -673,6 +683,33 @@ function getSelectionText()
 	return getTextFromTo(fx, fy, tx, ty)
 end
 
+function getSelectionLength()
+	local j
+	local fx, fy, tx, ty = getCorrectSelection()
+	
+	if not editor.cursor.select.enabled then return 0, 0 end
+	
+	chars = 0
+	lines = (ty - fy) + 1
+	
+	print(fy, ty)
+	if fy == ty then
+		chars = tx - fx
+	else
+		chars = (#editor.text[fy] - fx) + 1
+		for j = fy + 1, ty do
+			chars = chars + 1
+			if j == ty then
+				chars = chars + (-tx + #editor.text[j])
+			else
+				chars = chars + #editor.text[j]
+			end
+		end
+	end
+	
+	return chars, lines
+end
+
 -- Find what character the mouse is on top of
 function getMouseCharacter()
 	local x, y = editor.cursor.x, editor.cursor.y
@@ -685,11 +722,11 @@ end
 
 -- Add some text at some point
 function addTo(x, y, t)
-	hellYes(x, y)
 	
 	local j
 	local lines = {}
 	
+	chars = #t
 	lines = stringSplitFunky(t, editor.file.lineBreak)
 	
 	if #lines == 1 then
@@ -705,30 +742,57 @@ function addTo(x, y, t)
 			end
 		end
 	end
+	
+	-- Calls to `addTo` are expected to play their own baseline type sound.
+	hellYes(x, y)
+	if chars > 3 then typeSoundAround(0.75, nil, 2) end
+	if #lines > 2 then typeSoundAround(0.50, nil, 3) end
 end
 
 -- Remove some text
 function removeFromTo(fx, fy, tx, ty)
-	local j
+	local j, i -- i misunderstood lua in the first place but this will continue due to style
 	
 	tx = tx or fx
 	ty = ty or fy
 	
+	local chars, lines = getSelectionLength()
+	
 	if fy == ty then
+		for i = fx + 1, tx do
+			particleExplodeAtCharacter(i, fy)
+		end
+		
 		editor.text[fy] = string.sub(editor.text[fy], 1, fx - 1) .. string.sub(editor.text[ty], tx)
 	else
+		for i = fx + 1, #editor.text[fy] do
+			particleExplodeAtCharacter(i, fy)
+		end
+		
 		editor.text[fy] = string.sub(editor.text[fy], 1, fx - 1)
+		
 		for j = ty, fy + 1, -1 do
 			if j == ty then
+				for i = 1, tx do
+					particleExplodeAtCharacter(i, fy)
+				end
+				
 				editor.text[fy] = editor.text[fy] .. string.sub(table.remove(editor.text, j), tx)
 			else
+				for i = 1, #editor.text[j] do
+					particleExplodeAtCharacter(i, j)
+				end
+				
 				table.remove(editor.text, j)
 			end
 		end
 	end
 	
+	-- Calls to `removeFromTo` must not play a sound. Inconsistency!
 	hellYes(fx, fy)
-	particleExplodeAtCharacter(tx, ty)
+	typeSoundAround(0.60, nil, 1)
+	if chars > 3 then typeSoundAround(0.75, nil, 2) end
+	if lines > 2 then typeSoundAround(0.50, nil, 3) end
 end
 
 function removeSelection()
@@ -825,7 +889,8 @@ function hellYes(x, y)
 	particleExplodeAtCharacter(x or editor.cursor.x, y or editor.cursor.y)
 end
 
-function typeSoundAround(n, m)
+function typeSoundAround(n, m, voice)
+	voice = voice or 1
 	typeSound:setPitch(n + love.math.random() * (m or 0.125))
-	love.audio.play(typeSound)
+	select(voice, typeSound, typeSound2, typeSound3):play()
 end
