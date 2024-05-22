@@ -1,47 +1,14 @@
 function setup()
 	editor = {
-		text = {
-			"-- Might be nice code style",
-			"function watch:setup()",
-			"  local _, value",
-			"  ",
-			"  for _, value in ipairs(self.keys) do",
-			"    self.downTime[value] = 0",
-			"    self.down[value]     = false",
-			"    self.press[value]    = false",
-			"    self.release[value]  = false",
-			"  end",
-			"end",
-			"",
-			"function watch:update()",
-			"  local index, value, _",
-			"  ",
-			"  for _, value in ipairs(self.keys) do",
-			"    self.down[value] = self.check(value)",
-			"    self.press[value] = false",
-			"    self.release[value] = false",
-			"    ",
-			"    if self.down[value] then",
-			"      if self.downTime[value] == 0 then",
-			"        self.press[value] = true",
-			"      end",
-			"      self.downTime[value] = self.downTime[value] + 1",
-			"    else",
-			"      if self.downTime[value] > 0 then",
-			"        self.release[value] = true",
-			"      end",
-			"      self.downTime[value] = 0",
-			"    end",
-			"  end",
-			"end"
-		},
+		text = { "" },
 		
 		-- Stuff about the file
 		file = {
 			name = "untitled.txt",
 			path = love.filesystem.getSaveDirectory(),
 			
-			lineBreak = "\n"
+			lineBreak = "\n",
+			tabConvert = "  "
 		},
 		
 		-- Where the heck the mouse is
@@ -141,6 +108,10 @@ function setup()
 	
 	-- Click thing???
 	typeSound = love.audio.newSource("resources/type.wav", "static")
+	
+	-- Load from `stdin`
+	incomingText = string.gsub(io.stdin:read('*a'), "\t", editor.file.tabConvert)
+	editor.text = stringSplitFunky(incomingText, editor.file.lineBreak)
 end
 
 -- Add text
@@ -163,7 +134,7 @@ function love.filedropped(file)
 	
 	local line
 	for line in file:lines() do
-		line = string.gsub(line, "\t", "    ")
+		line = string.gsub(line, "\t", editor.file.tabConvert)
 		table.insert(editor.text, line)
 	end
 	
