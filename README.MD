@@ -18,6 +18,10 @@ This is a text editor, built in Love2D from scratch.
 	* SmileBASIC-inspired?
 	* Inputs? Mouse and keyboard? Mouse, keyboard, gamepad?
 
+# [2024] ..But it never seems to actually open?
+
+Oh! Sorry, it reads from `stdin` for its initial state. If you do `cat game.lua | love .` it'll appear with its source code like it did before. If you're on Windows, what are you doing?! (I think you can press Ctrl+D on both platforms to close the `stdin` and let Love2D start.)
+
 # License
 
 Just don't steal it and pass it off as your own thing, okay?
